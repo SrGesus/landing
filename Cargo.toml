@@ -1,0 +1,16 @@
+[package]
+name = "landing"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum = { version = "0.8.9", features = ["http2", "macros"] }
+futures = "0.3.32"
+itertools = "0.14.0"
+minijinja = "2.20.0"
+notify = "8.2.0"
+regex = "1.12.3"
+tailwind-css = "0.13.0"
+tokio = { version = "1.52.3", features = ["fs", "macros", "rt-multi-thread"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
