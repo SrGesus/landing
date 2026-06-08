@@ -1,6 +1,6 @@
 use std::{
     path::PathBuf,
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, RwLock},
 };
 
 use itertools::Itertools;
@@ -15,24 +15,26 @@ pub struct Environment(pub RwLock<EnvironmentInner>);
 #[derive(Debug)]
 pub struct EnvironmentInner {
     pub jinja: minijinja::Environment<'static>,
+    pub templates_path: PathBuf,
     pub tailwind: TailwindBuilder,
     pub tailwind_parsed: String,
 }
 
 impl Environment {
-    pub async fn build(templates_path: &str) -> Arc<Environment> {
+    pub async fn build(templates_path: PathBuf) -> Arc<Environment> {
         let span = tracing::span!(
             Level::INFO,
             "Environment::build",
-            templates_path = templates_path
+            templates_path = templates_path.to_string_lossy().to_string()
         );
         let _enter = span.enter();
-        let mut stack = vec![PathBuf::from(templates_path)];
+        let mut stack = vec![templates_path.clone()];
         let mut handles = vec![];
         let env = Arc::new(Environment(RwLock::new(EnvironmentInner {
             jinja: minijinja::Environment::new(),
             tailwind: TailwindBuilder::default(),
             tailwind_parsed: String::new(),
+            templates_path,
         })));
 
         while let Some(dir) = stack.pop() {
@@ -60,7 +62,7 @@ impl Environment {
         env
     }
 
-    async fn handle_file<'a>(path: PathBuf, env: Arc<Environment>) {
+    async fn handle_file(path: PathBuf, env: Arc<Environment>) {
         let template_contents: String = fs::read_to_string(&path).await.unwrap();
         let re: regex::Regex = Regex::new(r#"class="([\w\/:\-\s]+)""#).unwrap();
 
@@ -83,7 +85,12 @@ impl Environment {
             }
         }
 
-        let template_name = path.to_string_lossy().to_string();
+        let template_name = path
+            .strip_prefix(&env.0.read().unwrap().templates_path)
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
+
         tracing::debug!("Adding jinja template: {}", template_name);
 
         // Load templates into jinja

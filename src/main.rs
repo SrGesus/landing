@@ -16,7 +16,7 @@ async fn main() {
         .with_max_level(tracing::Level::DEBUG)
         .init();
 
-    let env = Environment::build("./templates").await;
+    let env = Environment::build("./templates".into()).await;
 
     let app = router::router(env);
 
