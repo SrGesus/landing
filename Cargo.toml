@@ -12,6 +12,6 @@ notify = "8.2.0"
 regex = "1.12.3"
 tailwind-css = "0.13.0"
 tokio = { version = "1.52.3", features = ["fs", "macros", "rt-multi-thread"] }
-tower-http = "0.6.11"
+tower-http = { version = "0.6.11", features = ["fs"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
