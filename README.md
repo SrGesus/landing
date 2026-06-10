@@ -62,6 +62,8 @@ If you're using tailwind, your layout template should have the following:
 TOML files in the included directory will be sent as input for templates under their file
 name, without their suffix.
 
+Script output to stdout will be available as `output`.
+
 ### Configuration
 
 ```toml
@@ -81,7 +83,7 @@ include = "./config.d/"
 [templates]
 suffixes = [ ".html.j2", ".html" ]
 
-# CGI Scripts
+# CGI-like Scripts
 [scripts]
 suffixes = [ ".sh" ]
 
