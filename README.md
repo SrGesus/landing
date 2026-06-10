@@ -5,52 +5,90 @@ renders [`minijinja`](https://github.com/mitsuhiko/minijinja) templates,
 has cgi-like capabilities and uses [`tailwind_css`](https://github.com/oovm/tailwind-rs)
 to have an always just-in-time up to date stylesheet. Configured with toml.
 
-Made for my homelab landing page.
+Considering removing axum and just using tower directly.
 
-## What does (will) it do?
+## What does it do?
 
 For example, you can have a folder structure like this.
 - When you request `/` you will get `index.html` like a static file
 - When you request `/foo`, `foo.sh` will run,
 its stdout will be used to render `foo.html.j2`
-- When you request `_layout.html.j`, you get 404, templates starting with `_` are hidden
+- When you request `_layout`, you get 404 - templates starting with `_` are hidden
 
 ```tree
-  public
+  routes/
  ├── index.html
  ├── _layout.html.j2
  ├── foo.sh
  └── foo.html.j2
+  assets/
+ ├── styles.css
+ └── background.webp
 ```
 
-## Configuration
+You can choose to separate or join these three different type of files into different
+directories as you wish.
+
+## Why does it do it?
+
+For fun! I just wanted something simple for my homelab landing page.
+
+Something that:
+- Renders simple `minijinja` templates.
+- Can use the contents of some format (like `toml`) as template input.
+- I can use to trigger simple scripts.
+- Supports tailwind without needing a javascript runtime.
+
+## Who's there?
+
+Vee vill ask ze questions!
+
+## How does one do it?
+
+Other than static files, files will be interpreted as scripts or templates based on their suffix.
+
+As shown before, routes will take the name without the suffix, `/foo.html.j2` will be
+rendered when `/foo` or `/foo/` is requested.
+Alternatively, since `index` is interpreted as a special word,
+`/foo/index.html.j2` could also be served at this endpoint.
+
+### Templates
+
+If you're using tailwind, your layout template should have the following:
+```html
+    <link rel="stylesheet" href="{{ tailwind_href }}">
+```
+
+TOML files in the included directory will be sent as input for templates under their file
+name, without their suffix.
+
+### Configuration
 
 ```toml
 # config.toml
 
-include = "./config.d/*.toml"
+# Default path and endpoint, can be overriden individually
+# per templates/scripts/files section
+path = "./routes"
+endpoint = "/"
 
 index_word = "index"
 
-path = "./public"
-endpoint = "/"
+# Include toml files, will be used by templates
+include = "./config.d/"
 
 # Jinja templates
 [templates]
-suffixes = [ "html.j2" ]
+suffixes = [ ".html.j2", ".html" ]
 
 # CGI Scripts
 [scripts]
-path = "./public"
-endpoint = "/"
 suffixes = [ ".sh" ]
 
 # Static files
 [files]
-# Path and endpoint can be changed individually per templates/scripts/files
 path = "./assets"
 endpoint = "/assets"
-suffixes = [ ".html", "" ] # Thus includes every file 
 
 # Tailwind settings
 [tailwind]
@@ -60,13 +98,5 @@ enable = true
 check_rendered = true
 ```
 
-## Templates
-
-If you're using tailwind, your layout template should have the following:
-```html
-    <link rel="stylesheet" href="/assets/tailwind.css">
-```
-
-
-## Tailwind
+### Tailwind
 
