@@ -74,12 +74,13 @@ pub async fn get_tailwind(
     headers: HeaderMap,
 ) -> Response<String> {
     if let Some(etag) = headers.get(axum::http::header::IF_NONE_MATCH)
-        && *etag == *env.0.read().unwrap().tailwind.etag {
-            return Response::builder()
-                .status(StatusCode::NOT_MODIFIED)
-                .body("".to_owned())
-                .unwrap();
-        }
+        && *etag == *env.0.read().unwrap().tailwind.etag
+    {
+        return Response::builder()
+            .status(StatusCode::NOT_MODIFIED)
+            .body("".to_owned())
+            .unwrap();
+    }
     Response::builder()
         .status(StatusCode::OK)
         .header("ETag", &env.0.read().unwrap().tailwind.etag)
