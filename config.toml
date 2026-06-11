@@ -1,0 +1,31 @@
+# config.toml
+
+# Default path and endpoint, can be overriden individually
+# per templates/scripts/files section
+path = "./routes"
+endpoint = "/"
+
+index_word = "index"
+
+# Include toml files, will be used as template input
+include = "./config.d/"
+
+# Jinja templates
+[templates]
+suffixes = [ ".html.j2", ".html" ]
+
+# CGI-like Scripts
+[scripts]
+suffixes = [ ".sh" ]
+
+# Static files
+[files]
+path = "./assets"
+endpoint = "/assets"
+
+# Tailwind settings
+[tailwind]
+enable = true
+# Check rendered output for classes, not just source template
+# If all classes are in templates, this should be set to false.
+check_rendered = true

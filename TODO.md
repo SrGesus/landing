@@ -1,6 +1,6 @@
 # TODO
 - [ ] Configuration
-    - [ ] Configuration structure and reading TOML config
+    - [x] Configuration structure and reading TOML config
     - [ ] Reading TOML files and inputting them into templates
 - [ ] Templates
     - [ ] Hide templates with _ prefix
@@ -13,3 +13,4 @@
     - [ ] Keep date on structure
     - [ ] Keep set of tailwind classes that have been read
     - [ ] Optionally read rendered output for tailwind classes
+- [ ] Refactor tidying everything up and implementing everything as a tower service

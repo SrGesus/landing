@@ -10,8 +10,10 @@ itertools = "0.14.0"
 minijinja = "2.20.0"
 notify = "8.2.0"
 regex = "1.12.3"
+serde = { version = "1.0.228", features = ["derive"] }
 tailwind-css = "0.13.0"
 tokio = { version = "1.52.3", features = ["fs", "macros", "rt-multi-thread"] }
+toml = "1.1.2"
 tower-http = { version = "0.6.11", features = ["fs"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }

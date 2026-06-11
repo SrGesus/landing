@@ -9,6 +9,10 @@ use tailwind_css::TailwindBuilder;
 use tokio::fs::{self};
 use tracing::Level;
 
+use crate::environment::config::Config;
+
+mod config;
+
 #[derive(Debug)]
 pub struct Environment(pub RwLock<EnvironmentInner>);
 
@@ -27,6 +31,15 @@ impl Environment {
             "Environment::build",
             templates_path = templates_path.to_string_lossy().to_string()
         );
+
+
+        // Config
+        let config_str = fs::read_to_string("./config.toml").await.unwrap();
+        let config: Config = toml::from_str(&config_str).unwrap();
+        println!("{:#?}", config);
+
+
+        // Templates
         let _enter = span.enter();
         let mut stack = vec![templates_path.clone()];
         let mut handles = vec![];

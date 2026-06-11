@@ -76,7 +76,7 @@ endpoint = "/"
 
 index_word = "index"
 
-# Include toml files, will be used by templates
+# Include toml files, will be used as template input
 include = "./config.d/"
 
 # Jinja templates
