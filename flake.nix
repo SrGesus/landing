@@ -39,15 +39,10 @@
           packages = with pkgs; [
             # Rust toolchain
             rustup
+            pre-commit
 
             # Vscode extensions
             vs
-
-            # Optional: For native dependencies (e.g., OpenSSL, SQLite)
-            # pkg-config
-            # cmake
-            # openssl
-            # libiconv
           ];
 
           # Environment variables
@@ -72,9 +67,6 @@
             lockFile = ./Cargo.lock;
           };
           nativeBuildInputs = with pkgs; [
-            # pkg-config
-            # cmake
-            # openssl
           ];
           doCheck = false;
         };
