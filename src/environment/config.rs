@@ -1,8 +1,11 @@
+use std::path::PathBuf;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
-    path: String,
+    #[serde(default = "Config::default_path")]
+    path: PathBuf,
     #[serde(default = "Config::default_endpoint")]
     endpoint: String,
     #[serde(default = "Config::default_index_word")]
@@ -20,8 +23,32 @@ pub struct Config {
 }
 
 impl Config {
+    pub fn get_index_word(&self) -> &str {
+        &self.index_word
+    }
+
+    pub fn get_include(&self) -> &Option<String> {
+        &self.include
+    }
+
+    pub fn get_templates_path(&self) -> &PathBuf {
+        self.templates.path.as_ref().unwrap_or(&self.path)
+    }
+
+    pub fn get_scripts_path(&self) -> &PathBuf {
+        self.scripts.path.as_ref().unwrap_or(&self.path)
+    }
+
+    pub fn get_files_path(&self) -> &PathBuf {
+        self.files.path.as_ref().unwrap_or(&self.path)
+    }
+
     fn default_index_word() -> String {
         "index".to_string()
+    }
+
+    fn default_path() -> PathBuf {
+        PathBuf::from(".")
     }
 
     fn default_endpoint() -> String {
@@ -33,7 +60,7 @@ impl Config {
 pub struct FileConfig {
     #[serde(default)]
     suffixes: Vec<String>,
-    path: Option<String>,
+    path: Option<PathBuf>,
     endpoint: Option<String>,
 }
 

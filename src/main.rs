@@ -5,7 +5,6 @@ mod router;
 
 use environment::Environment;
 
-
 #[tokio::main]
 async fn main() {
     // build our application with a single route
@@ -16,7 +15,7 @@ async fn main() {
         .with_max_level(tracing::Level::DEBUG)
         .init();
 
-    let env = Environment::build("./templates".into()).await;
+    let env = Environment::build().await;
 
     let app = router::router(env);
 
