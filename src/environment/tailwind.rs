@@ -2,7 +2,6 @@ use std::{
     collections::HashSet,
     hash::{DefaultHasher, Hasher},
     sync::Arc,
-    time::{Instant, SystemTime},
 };
 
 use axum::{
@@ -22,7 +21,7 @@ pub(super) struct Tailwind {
     classes: HashSet<String>,
     pub bundle: String,
     pub etag: String,
-    changed: bool,
+    changed: bool, // if true then bundle is out of date
 }
 
 static TAILWIND_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r#"class="([\w\/:\-\s]+)""#).unwrap());
@@ -40,23 +39,19 @@ impl Tailwind {
 
     pub fn add_content(env: &Environment, content: &str) {
         let classes = TAILWIND_REGEX
-            .captures_iter(&content)
+            .captures_iter(content)
             .map(|c| {
                 let (_, [classes]) = c.extract();
                 classes
             })
-            .map(|s| s.split_whitespace())
-            .flatten();
+            .flat_map(|s| s.split_whitespace());
 
         for class in classes {
             if !env.0.read().unwrap().tailwind.classes.contains(class) {
                 let mut guard = env.0.write().unwrap();
                 guard.tailwind.classes.insert(class.to_owned());
-                match guard.tailwind.builder.trace(class, false) {
-                    Ok(_) => {
-                        guard.tailwind.changed = true;
-                    }
-                    Err(_) => (),
+                if let Ok(_) = guard.tailwind.builder.trace(class, false) {
+                    guard.tailwind.changed = true;
                 }
             }
         }
@@ -78,14 +73,13 @@ pub async fn get_tailwind(
     State(env): State<Arc<Environment>>,
     headers: HeaderMap,
 ) -> Response<String> {
-    if let Some(etag) = headers.get(axum::http::header::IF_NONE_MATCH) {
-        if *etag == *env.0.read().unwrap().tailwind.etag {
+    if let Some(etag) = headers.get(axum::http::header::IF_NONE_MATCH)
+        && *etag == *env.0.read().unwrap().tailwind.etag {
             return Response::builder()
                 .status(StatusCode::NOT_MODIFIED)
                 .body("".to_owned())
                 .unwrap();
         }
-    }
     Response::builder()
         .status(StatusCode::OK)
         .header("ETag", &env.0.read().unwrap().tailwind.etag)

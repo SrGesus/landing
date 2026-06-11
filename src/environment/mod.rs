@@ -72,7 +72,7 @@ impl Environment {
         Tailwind::add_content(&env, &template_contents);
 
         let template_name = path
-            .strip_prefix(&env.0.read().unwrap().config.get_templates_path())
+            .strip_prefix(env.0.read().unwrap().config.get_templates_path())
             .unwrap()
             .to_string_lossy()
             .to_string();

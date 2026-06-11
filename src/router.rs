@@ -10,7 +10,7 @@ use axum::{
 use minijinja::context;
 use tower_http::services::ServeDir;
 
-use crate::environment::{self, Environment, tailwind::get_tailwind};
+use crate::environment::{Environment, tailwind::get_tailwind};
 
 #[axum::debug_handler]
 async fn get_template(

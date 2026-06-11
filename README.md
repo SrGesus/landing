@@ -3,7 +3,9 @@
 A simple server powered by [`axum`](https://github.com/tokio-rs/axum/) that serves files,
 renders [`minijinja`](https://github.com/mitsuhiko/minijinja) templates,
 has cgi-like capabilities and uses [`tailwind_css`](https://github.com/oovm/tailwind-rs)
-to have an always just-in-time up to date stylesheet. Configured with toml.
+to have an always just-in-time up to date stylesheet.
+
+Configured with toml.
 
 Considering removing axum and just using tower directly.
 
