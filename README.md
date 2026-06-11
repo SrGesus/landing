@@ -16,12 +16,12 @@ its stdout will be used to render `foo.html.j2`
 - When you request `_layout`, you get 404 - templates starting with `_` are hidden
 
 ```tree
-  routes/
+ routes/
  ├── index.html
  ├── _layout.html.j2
  ├── foo.sh
  └── foo.html.j2
-  assets/
+ assets/
  ├── styles.css
  └── background.webp
 ```

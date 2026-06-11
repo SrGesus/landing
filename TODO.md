@@ -1,8 +1,15 @@
 # TODO
-
-- [ ] Configuration structure and reading TOML config
-- [ ] Reading TOML files and inputting them into templates
-- [ ] Add cgi-like script execution
-- [ ] Make its output available to templates
-- [ ] Keep set of tailwind classes that have been read
-- [ ] Optionally read rendered output for tailwind classes
+- [ ] Configuration
+    - [ ] Configuration structure and reading TOML config
+    - [ ] Reading TOML files and inputting them into templates
+- [ ] Templates
+    - [ ] Hide templates with _ prefix
+    - [ ] Use suffixes from config
+    - [ ] Input dynamic state into templates
+- [ ] Scripts
+    - [ ] Add cgi-like script execution
+    - [ ] Make its output available to templates
+- [ ] Tailwind
+    - [ ] Keep date on structure
+    - [ ] Keep set of tailwind classes that have been read
+    - [ ] Optionally read rendered output for tailwind classes
