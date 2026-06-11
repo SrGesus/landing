@@ -10,12 +10,7 @@ use axum::{
 use minijinja::context;
 use tower_http::services::ServeDir;
 
-use crate::environment::Environment;
-
-#[axum::debug_handler]
-async fn get_tailwind(State(state): State<Arc<Environment>>) -> String {
-    state.0.read().unwrap().tailwind_parsed.clone()
-}
+use crate::environment::{self, Environment, tailwind::get_tailwind};
 
 #[axum::debug_handler]
 async fn get_template(
@@ -37,11 +32,7 @@ async fn get_template(
 
     let template = template_option.ok_or(StatusCode::NOT_FOUND)?;
 
-    Ok(Html(
-        template
-            .render(context! {})
-            .unwrap(),
-    ))
+    Ok(Html(template.render(context! {}).unwrap()))
 }
 
 pub(crate) fn router(state: Arc<Environment>) -> Router {

@@ -7,7 +7,7 @@ use tokio::fs::{self};
 use tracing::Level;
 
 mod config;
-mod tailwind;
+pub mod tailwind;
 
 use self::{config::Config, tailwind::Tailwind};
 
@@ -59,6 +59,8 @@ impl Environment {
         for handle in handles {
             handle.await.unwrap();
         }
+
+        env.0.write().unwrap().tailwind.finish();
 
         env
     }

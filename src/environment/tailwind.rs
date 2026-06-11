@@ -62,14 +62,14 @@ impl Tailwind {
         }
     }
 
-    pub fn finish(tailwind: &mut Tailwind, content: &str) {
-        let bundle = tailwind.builder.bundle().unwrap();
+    pub fn finish(&mut self) {
+        let bundle = self.builder.bundle().unwrap();
         let mut hasher = DefaultHasher::default();
         hasher.write(bundle.as_bytes());
         let hash = hasher.finish();
-        tailwind.bundle = bundle;
-        tailwind.etag = hash.to_string();
-        tailwind.changed = false;
+        self.bundle = bundle;
+        self.etag = hash.to_string();
+        self.changed = false;
     }
 }
 
