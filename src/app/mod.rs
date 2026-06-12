@@ -22,14 +22,6 @@ pub struct App;
 impl App {
     pub async fn serve() {
         let state = AppState::build(CONFIG_PATH).await;
-        let (tx, rx) = mpsc::channel::<Result<Event, notify::Error>>();
-        let rx = Arc::new(Mutex::new(rx));
-
-        let mut watcher = notify::recommended_watcher(tx.clone()).unwrap();
-
-        watcher
-            .watch(Path::new(CONFIG_PATH), notify::RecursiveMode::NonRecursive)
-            .unwrap();
 
         loop {
             let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
@@ -40,7 +32,7 @@ impl App {
 
             // Serve axum with clean shutdown when config.toml changes to new valid config
             axum::serve(listener, Self::router(state.clone()))
-                .with_graceful_shutdown(Config::await_new(state.config.clone(), rx.clone()))
+                .with_graceful_shutdown(Config::await_new(state.config.clone()))
                 .await
                 .unwrap();
         }

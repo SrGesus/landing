@@ -19,13 +19,6 @@ impl AppState {
         AppState { config }
     }
 
-    // pub(super) fn update_config(&self, path: impl AsRef<Path>) -> Result<(), Error> {
-    //     tracing::info!("Reloading config {} ...", path.as_ref().to_string_lossy());
-    //     let config = Config::from_file(path)?;
-    //     *self.config.write().unwrap() = config;
-    //     Ok(())
-    // }
-
     // This is a std lock so no awaits pls
     pub fn get_config(&self) -> std::sync::RwLockReadGuard<'_, Config> {
         self.config.read().unwrap()

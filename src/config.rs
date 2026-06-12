@@ -1,24 +1,22 @@
 use std::{
     path::{Path, PathBuf},
-    sync::{Arc, Mutex, RwLock, mpsc::Receiver},
+    sync::{Arc, Mutex, RwLock, mpsc::{self, Receiver}},
     thread::sleep,
     time::Duration,
 };
 
-use notify::EventKind;
+use notify::{EventKind, RecommendedWatcher, Watcher};
 use serde::{Deserialize, Serialize};
 
 use crate::error::Error;
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Config {
-    #[serde(default)]
-    config_path: PathBuf,
-    #[serde(default = "Config::default_path")]
+struct ConfigInner {
+    #[serde(default = "ConfigInner::default_path")]
     path: PathBuf,
-    #[serde(default = "Config::default_endpoint")]
+    #[serde(default = "ConfigInner::default_endpoint")]
     endpoint: String,
-    #[serde(default = "Config::default_index_word")]
+    #[serde(default = "ConfigInner::default_index_word")]
     index_word: String,
     include: Option<String>,
 
@@ -32,20 +30,33 @@ pub struct Config {
     tailwind: TailwindConfig,
 }
 
+#[derive(Debug)]
+pub  struct Config {
+    path: PathBuf,
+    _watcher: RecommendedWatcher,
+    rx: Arc<Mutex<Receiver<Result<notify::Event, notify::Error>>>>,
+    inner: ConfigInner,
+}
+
 impl Config {
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self, Error> {
-        Self::_from_file(&path).map_err(|e| Error::config(path, e))
+        let (tx, rx) = mpsc::channel::<Result<notify::Event, notify::Error>>();
+        let mut watcher = notify::recommended_watcher(tx).unwrap();
+
+        watcher
+            .watch(path.as_ref(), notify::RecursiveMode::NonRecursive)
+            .unwrap();
+
+        Ok(Config {
+            path: PathBuf::from(path.as_ref()),
+            inner: ConfigInner::from_file(&path).map_err(|e| Error::config(path, e))?,
+            _watcher: watcher,
+            rx: Arc::new(Mutex::new(rx)),
+        })
     }
 
-    pub fn _from_file(path: impl AsRef<Path>) -> Result<Self, anyhow::Error> {
-        let config_str = std::fs::read_to_string(path.as_ref())?;
-        let mut config: Config = toml::from_str(&config_str)?;
-        config.config_path = PathBuf::from(path.as_ref());
-        Ok(config)
-    }
-
-    pub fn update_config(config: &RwLock<Self>) -> Result<(), Error> {
-        let path = config.read().unwrap().config_path.clone();
+    fn update_config(config: &RwLock<Self>) -> Result<(), Error> {
+        let path = config.read().unwrap().path.clone();
         tracing::info!("Reloading config {} ...", path.to_string_lossy());
         *config.write().unwrap() = Config::from_file(path)?;
         Ok(())
@@ -53,8 +64,8 @@ impl Config {
 
     pub async fn await_new(
         config: Arc<RwLock<Config>>,
-        rx: Arc<Mutex<Receiver<Result<notify::Event, notify::Error>>>>,
     ) {
+        let rx = config.read().unwrap().rx.clone();
         let rx = rx.lock().unwrap();
         while let Ok(res) = rx.recv().inspect_err(|e| tracing::error!("{}", e)) {
             match res {
@@ -76,35 +87,42 @@ impl Config {
     }
 
     pub fn get_index_word(&self) -> &str {
-        &self.index_word
+        &self.inner.index_word
     }
 
     pub fn get_include(&self) -> &Option<String> {
-        &self.include
+        &self.inner.include
     }
 
     pub fn get_templates_path(&self) -> &PathBuf {
-        self.templates.path.as_ref().unwrap_or(&self.path)
+        self.inner.templates.path.as_ref().unwrap_or(&self.inner.path)
     }
 
     pub fn get_templates_endpoint(&self) -> &str {
-        self.templates.endpoint.as_ref().unwrap_or(&self.endpoint)
+        self.inner.templates.endpoint.as_ref().unwrap_or(&self.inner.endpoint)
     }
 
     pub fn get_scripts_path(&self) -> &PathBuf {
-        self.scripts.path.as_ref().unwrap_or(&self.path)
+        self.inner.scripts.path.as_ref().unwrap_or(&self.inner.path)
     }
 
     pub fn get_scripts_endpoint(&self) -> &str {
-        self.scripts.endpoint.as_ref().unwrap_or(&self.endpoint)
+        self.inner.scripts.endpoint.as_ref().unwrap_or(&self.inner.endpoint)
     }
 
     pub fn get_files_path(&self) -> &PathBuf {
-        self.files.path.as_ref().unwrap_or(&self.path)
+        self.inner.files.path.as_ref().unwrap_or(&self.inner.path)
     }
 
     pub fn get_files_endpoint(&self) -> &str {
-        self.files.endpoint.as_ref().unwrap_or(&self.endpoint)
+        self.inner.files.endpoint.as_ref().unwrap_or(&self.inner.endpoint)
+    }
+}
+
+impl ConfigInner {
+    fn from_file(path: impl AsRef<Path>) -> Result<Self, anyhow::Error> {
+        let config_str = std::fs::read_to_string(path.as_ref())?;
+        Ok(toml::from_str(&config_str)?)
     }
 
     fn default_index_word() -> String {
