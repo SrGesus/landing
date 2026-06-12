@@ -14,5 +14,5 @@ async fn main() {
         .with_max_level(tracing::Level::DEBUG)
         .init();
 
-    App::serve().await;
+    App::serve("config.toml").await;
 }

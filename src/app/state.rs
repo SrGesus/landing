@@ -1,7 +1,4 @@
-use std::{
-    path::Path,
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 
 use crate::config::Config;
 
@@ -11,11 +8,7 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub(super) async fn build(path: impl AsRef<Path>) -> Self {
-        let config = Config::from_file(path).expect("Building config");
-
-        let config = Arc::new(RwLock::new(config));
-
+    pub(super) async fn build(config: Arc<RwLock<Config>>) -> Self {
         AppState { config }
     }
 
