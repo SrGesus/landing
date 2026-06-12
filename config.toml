@@ -21,7 +21,7 @@ suffixes = [ ".sh" ]
 # Static files
 [files]
 path = "./assets"
-endpoint = "/assets"
+endpoint = "/assets/"
 
 # Tailwind settings
 [tailwind]
