@@ -18,8 +18,7 @@ pub struct Environment(pub RwLock<EnvironmentInner>);
 pub struct EnvironmentInner {
     pub jinja: minijinja::Environment<'static>,
     // pub tailwind: TailwindBuilder,
-    pub tailwind: Tailwind,
-    pub tailwind_parsed: String,
+    tailwind: Tailwind,
     pub config: Config,
 }
 
@@ -39,7 +38,6 @@ impl Environment {
         let env = Arc::new(Environment(RwLock::new(EnvironmentInner {
             jinja: minijinja::Environment::new(),
             tailwind: Tailwind::new(),
-            tailwind_parsed: String::new(),
             config,
         })));
 
@@ -59,8 +57,6 @@ impl Environment {
         for handle in handles {
             handle.await.unwrap();
         }
-
-        env.0.write().unwrap().tailwind.finish();
 
         env
     }

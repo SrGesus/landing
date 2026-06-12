@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: clippy
+        name: Run cargo clippy
+        entry: cargo clippy -- -D warnings
+        language: system
+        types: [rust]
+        pass_filenames: false

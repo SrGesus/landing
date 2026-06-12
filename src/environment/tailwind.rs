@@ -1,7 +1,5 @@
 use std::{
-    collections::HashSet,
-    hash::{DefaultHasher, Hasher},
-    sync::Arc,
+    collections::HashSet, fmt::format, hash::{DefaultHasher, Hasher}, sync::Arc
 };
 
 use axum::{
@@ -12,6 +10,7 @@ use axum::{
 use once_cell::sync::Lazy;
 use regex::Regex;
 use tailwind_css::TailwindBuilder;
+use tracing::debug;
 
 use super::Environment;
 
@@ -19,7 +18,7 @@ use super::Environment;
 pub(super) struct Tailwind {
     builder: TailwindBuilder,
     classes: HashSet<String>,
-    pub bundle: String,
+    bundle: String,
     pub etag: String,
     changed: bool, // if true then bundle is out of date
 }
@@ -33,8 +32,19 @@ impl Tailwind {
             bundle: String::new(),
             classes: HashSet::new(),
             etag: String::new(),
-            changed: false,
+            changed: true,
         }
+    }
+
+    pub fn finish(&mut self) -> (String, String) {
+        tracing::info!("FInish him");
+        let bundle = self.builder.bundle().unwrap();
+        let mut hasher = DefaultHasher::default();
+        hasher.write(bundle.as_bytes());
+        self.bundle = bundle;
+        self.etag = format!("\"{:x}\"", hasher.finish());
+        self.changed = false;
+        (self.bundle.clone(), self.etag.clone())
     }
 
     pub fn add_content(env: &Environment, content: &str) {
@@ -51,20 +61,20 @@ impl Tailwind {
                 let mut guard = env.0.write().unwrap();
                 guard.tailwind.classes.insert(class.to_owned());
                 if let Ok(_) = guard.tailwind.builder.trace(class, false) {
+                    debug!("Found new tailwind class: {}", class);
                     guard.tailwind.changed = true;
                 }
             }
         }
     }
 
-    pub fn finish(&mut self) {
-        let bundle = self.builder.bundle().unwrap();
-        let mut hasher = DefaultHasher::default();
-        hasher.write(bundle.as_bytes());
-        let hash = hasher.finish();
-        self.bundle = bundle;
-        self.etag = hash.to_string();
-        self.changed = false;
+    pub fn get_bundle(env: &Environment) -> (String, String) {
+        if env.0.read().unwrap().tailwind.changed {
+            env.0.write().unwrap().tailwind.finish()
+        } else {
+            let guard = env.0.read().unwrap();
+            (guard.tailwind.bundle.clone(), guard.tailwind.etag.clone())
+        }
     }
 }
 
@@ -73,17 +83,31 @@ pub async fn get_tailwind(
     State(env): State<Arc<Environment>>,
     headers: HeaderMap,
 ) -> Response<String> {
-    if let Some(etag) = headers.get(axum::http::header::IF_NONE_MATCH)
-        && *etag == *env.0.read().unwrap().tailwind.etag
+    let (bundle, etag) = Tailwind::get_bundle(&env);
+
+    // If none match
+    if let Some(client_etag) = headers.get(axum::http::header::IF_NONE_MATCH)
+        && *client_etag == *etag
     {
         return Response::builder()
             .status(StatusCode::NOT_MODIFIED)
             .body("".to_owned())
             .unwrap();
     }
+
+    // If match
+    if let Some(client_etag) = headers.get(axum::http::header::IF_MATCH)
+        && *client_etag != *etag
+    {
+        return Response::builder()
+            .status(StatusCode::PRECONDITION_FAILED)
+            .body("".to_owned())
+            .unwrap();
+    }
+
     Response::builder()
         .status(StatusCode::OK)
-        .header("ETag", &env.0.read().unwrap().tailwind.etag)
-        .body(env.0.read().unwrap().tailwind.bundle.clone())
+        .header("ETag", etag)
+        .body(bundle)
         .unwrap()
 }
