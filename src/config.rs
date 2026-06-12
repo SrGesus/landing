@@ -2,7 +2,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         Arc, Mutex, RwLock,
-        mpsc::{self, Receiver, Sender},
+        mpsc::{self, Receiver},
     },
     thread::sleep,
     time::Duration,
@@ -36,13 +36,13 @@ pub struct Config {
 #[derive(Debug)]
 pub struct ConfigWatcher {
     _watcher: RecommendedWatcher,
-    new_config_rx: Arc<Mutex<Receiver<()>>>,
+    path: PathBuf,
+    watcher_rx: Mutex<Receiver<Result<notify::Event, notify::Error>>>,
+    pub config: Arc<RwLock<Config>>,
 }
 
 impl ConfigWatcher {
-    pub async fn from_file(
-        path: impl AsRef<Path>,
-    ) -> Result<(Arc<Self>, Arc<RwLock<Config>>), Error> {
+    pub async fn from_file(path: impl AsRef<Path>) -> Result<Self, Error> {
         let config = Arc::new(RwLock::new(
             Config::from_file(&path)
                 .inspect_err(|err| tracing::error!("{}", err))
@@ -50,61 +50,39 @@ impl ConfigWatcher {
         ));
 
         let (tx, watcher_rx) = mpsc::channel::<Result<notify::Event, notify::Error>>();
-        let (new_config_tx, new_config_rx) = mpsc::channel::<()>();
 
         let mut watcher = notify::recommended_watcher(tx).unwrap();
+
         watcher
             .watch(path.as_ref(), notify::RecursiveMode::NonRecursive)
             .unwrap();
-
-        Self::spawn_watcher_task(
-            PathBuf::from(path.as_ref()),
-            config.clone(),
-            watcher_rx,
-            new_config_tx,
-        );
-
-        Ok((
-            Arc::new(ConfigWatcher {
-                _watcher: watcher,
-                new_config_rx: Arc::new(Mutex::new(new_config_rx)),
-            }),
+        Ok(ConfigWatcher {
+            path: PathBuf::from(path.as_ref()),
+            _watcher: watcher,
+            watcher_rx: Mutex::new(watcher_rx),
             config,
-        ))
-    }
-
-    fn spawn_watcher_task(
-        path: PathBuf,
-        config: Arc<RwLock<Config>>,
-        watcher_rx: Receiver<Result<notify::Event, notify::Error>>,
-        new_config_tx: Sender<()>,
-    ) {
-        tokio::spawn(async move {
-            while let Ok(res) = watcher_rx.recv().inspect_err(|e| tracing::error!("{}", e)) {
-                match res {
-                    Ok(event)
-                        if matches!(event.kind, EventKind::Create(_) | EventKind::Modify(_)) =>
-                    {
-                        tracing::debug!("Received event: {:?}", event);
-                        // Ignore new events for a bit
-                        sleep(Duration::from_millis(5));
-                        while watcher_rx.try_recv().is_ok() {}
-                        if let Err(err) = Config::update_config(&config, &path) {
-                            tracing::error!("{}", err);
-                        } else {
-                            new_config_tx.send(()).unwrap();
-                        }
-                    }
-                    Err(e) => tracing::error!("Watcher error: {}", e),
-                    _ => (),
-                }
-            }
-        });
+        })
     }
 
     pub async fn await_new(self: Arc<Self>) {
-        // Tokio task will send us this stuff
-        self.new_config_rx.lock().unwrap().recv().unwrap();
+        let watcher_rx = self.watcher_rx.lock().unwrap();
+        while let Ok(res) = watcher_rx.recv().inspect_err(|e| tracing::error!("{}", e)) {
+            match res {
+                Ok(event) if matches!(event.kind, EventKind::Create(_) | EventKind::Modify(_)) => {
+                    tracing::debug!("Received event: {:?}", event);
+                    // Ignore new events for a bit
+                    sleep(Duration::from_millis(5));
+                    while watcher_rx.try_recv().is_ok() {}
+                    if let Err(err) = Config::update_config(&self.config, &self.path) {
+                        tracing::error!("{}", err);
+                    } else {
+                        break;
+                    }
+                }
+                Err(e) => tracing::error!("Watcher error: {}", e),
+                _ => (),
+            }
+        }
     }
 }
 

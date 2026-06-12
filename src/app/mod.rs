@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{path::Path, sync::Arc};
 
 use axum::Router;
 use tower_http::services::ServeDir;
@@ -12,10 +12,12 @@ use crate::config::ConfigWatcher;
 pub struct App;
 impl App {
     pub async fn serve(path: impl AsRef<Path>) {
-        let (config_watcher, config) = ConfigWatcher::from_file(path)
-            .await
-            .expect("Building config");
-        let state = AppState::build(config).await;
+        let config_watcher = Arc::new(
+            ConfigWatcher::from_file(path)
+                .await
+                .expect("Building config"),
+        );
+        let state = AppState::build(config_watcher.config.clone()).await;
 
         loop {
             let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
