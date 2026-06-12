@@ -1,6 +1,8 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
+
+use crate::error::Error;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
@@ -23,6 +25,11 @@ pub struct Config {
 }
 
 impl Config {
+    pub fn from_file(path: impl AsRef<Path>) -> Result<Self, anyhow::Error> {
+        let config_str = std::fs::read_to_string(path.as_ref())?;
+        Ok(toml::from_str(&config_str)?)
+    }
+
     pub fn get_index_word(&self) -> &str {
         &self.index_word
     }
@@ -35,12 +42,24 @@ impl Config {
         self.templates.path.as_ref().unwrap_or(&self.path)
     }
 
+    pub fn get_templates_endpoint(&self) -> &str {
+        self.templates.endpoint.as_ref().unwrap_or(&self.endpoint)
+    }
+
     pub fn get_scripts_path(&self) -> &PathBuf {
         self.scripts.path.as_ref().unwrap_or(&self.path)
     }
 
+    pub fn get_scripts_endpoint(&self) -> &str {
+        self.scripts.endpoint.as_ref().unwrap_or(&self.endpoint)
+    }
+
     pub fn get_files_path(&self) -> &PathBuf {
         self.files.path.as_ref().unwrap_or(&self.path)
+    }
+
+    pub fn get_files_endpoint(&self) -> &str {
+        self.files.endpoint.as_ref().unwrap_or(&self.endpoint)
     }
 
     fn default_index_word() -> String {
