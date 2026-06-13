@@ -14,13 +14,16 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::Error;
 
+#[derive(Clone, Debug, Default)]
+pub struct Config(Arc<RwLock<ConfigInner>>);
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct Config {
-    #[serde(default = "Config::default_path")]
+pub struct ConfigInner {
+    #[serde(default = "ConfigInner::default_path")]
     path: PathBuf,
-    #[serde(default = "Config::default_endpoint")]
+    #[serde(default = "ConfigInner::default_endpoint")]
     endpoint: String,
-    #[serde(default = "Config::default_index_word")]
+    #[serde(default = "ConfigInner::default_index_word")]
     index_word: String,
     include: Option<String>,
 
@@ -37,6 +40,31 @@ pub struct Config {
 }
 
 impl Config {
+    fn from_file(path: impl AsRef<Path>) -> Result<Self, Error> {
+        Ok(Config(Arc::new(RwLock::new(ConfigInner::from_file(path)?))))
+    }
+
+    fn update_config(&self, path: impl AsRef<Path>) -> Result<bool, Error> {
+        tracing::info!("Reloading config {} ...", path.as_ref().to_string_lossy());
+        let new_config = ConfigInner::from_file(path)?;
+        if new_config != *self.0.read().unwrap() {
+            *self.0.write().unwrap() = new_config;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    pub fn read(&self) -> std::sync::RwLockReadGuard<'_, ConfigInner> {
+        self.0.read().unwrap()
+    }
+
+    pub fn write(&self) -> std::sync::RwLockWriteGuard<'_, ConfigInner> {
+        self.0.write().unwrap()
+    }
+}
+
+impl ConfigInner {
     fn from_file(path: impl AsRef<Path>) -> Result<Self, Error> {
         Self::_from_file(&path).map_err(|e| Error::config(path, e))
     }
@@ -56,15 +84,15 @@ impl Config {
         Ok(config)
     }
 
-    fn update_config(config: &RwLock<Self>, path: impl AsRef<Path>) -> Result<bool, Error> {
-        tracing::info!("Reloading config {} ...", path.as_ref().to_string_lossy());
-        let new_config = Config::from_file(path)?;
-        if new_config != *config.read().unwrap() {
-            *config.write().unwrap() = new_config;
-            Ok(true)
-        } else {
-            Ok(false)
-        }
+    pub fn get_assets_uri(&self, uri: &http::Uri) -> Option<http::Uri> {
+        let uri_string = uri.to_string();
+        let mut assets_endpoint = self.get_files_endpoint().chars();
+        assets_endpoint.next_back();
+        tracing::error!("{}", assets_endpoint.as_str());
+        uri_string
+            .strip_prefix(assets_endpoint.as_str())?
+            .parse()
+            .ok()
     }
 
     fn validate_path(path: &mut PathBuf) -> Result<(), anyhow::Error> {
@@ -167,18 +195,18 @@ impl Config {
     }
 }
 
-impl Default for Config {
+impl Default for ConfigInner {
     fn default() -> Self {
         Self {
-            path: Config::default_path(),
-            endpoint: Config::default_endpoint(),
-            index_word: Config::default_index_word(),
+            path: Self::default_path(),
+            endpoint: Self::default_endpoint(),
+            index_word: Self::default_index_word(),
             include: Default::default(),
             templates: Default::default(),
             scripts: Default::default(),
             files: Default::default(),
             tailwind: Default::default(),
-            tailwind_endpoint: format!("{}tailwind.css", Config::default_path().to_string_lossy()),
+            tailwind_endpoint: format!("{}tailwind.css", Self::default_path().to_string_lossy()),
         }
     }
 }
@@ -223,16 +251,14 @@ pub struct ConfigWatcher {
     _watcher: RecommendedWatcher,
     path: PathBuf,
     watcher_rx: Mutex<Receiver<Result<notify::Event, notify::Error>>>,
-    pub config: Arc<RwLock<Config>>,
+    pub config: Config,
 }
 
 impl ConfigWatcher {
     pub async fn from_file(path: impl AsRef<Path>) -> Result<Self, Error> {
-        let config = Arc::new(RwLock::new(
-            Config::from_file(&path)
-                .inspect_err(|err| tracing::error!("{}", err))
-                .unwrap_or_default(),
-        ));
+        let config = Config::from_file(&path)
+            .inspect_err(|err| tracing::error!("{}", err))
+            .unwrap_or_default();
 
         let (tx, watcher_rx) = mpsc::channel::<Result<notify::Event, notify::Error>>();
 
