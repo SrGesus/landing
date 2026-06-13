@@ -1,21 +1,11 @@
 use std::{
     path::{Path, PathBuf},
-    sync::{
-        Arc, Mutex, RwLock,
-        mpsc::{self, Receiver},
-    },
-    thread::sleep,
-    time::Duration,
 };
 
 use anyhow::anyhow;
-use notify::{EventKind, RecommendedWatcher, Watcher};
 use serde::{Deserialize, Serialize};
 
 use crate::error::Error;
-
-#[derive(Clone, Debug, Default)]
-pub struct Config(Arc<RwLock<ConfigInner>>);
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct ConfigInner {
@@ -39,33 +29,8 @@ pub struct ConfigInner {
     tailwind_endpoint: String,
 }
 
-impl Config {
-    fn from_file(path: impl AsRef<Path>) -> Result<Self, Error> {
-        Ok(Config(Arc::new(RwLock::new(ConfigInner::from_file(path)?))))
-    }
-
-    fn update_config(&self, path: impl AsRef<Path>) -> Result<bool, Error> {
-        tracing::info!("Reloading config {} ...", path.as_ref().to_string_lossy());
-        let new_config = ConfigInner::from_file(path)?;
-        if new_config != *self.0.read().unwrap() {
-            *self.0.write().unwrap() = new_config;
-            Ok(true)
-        } else {
-            Ok(false)
-        }
-    }
-
-    pub fn read(&self) -> std::sync::RwLockReadGuard<'_, ConfigInner> {
-        self.0.read().unwrap()
-    }
-
-    pub fn write(&self) -> std::sync::RwLockWriteGuard<'_, ConfigInner> {
-        self.0.write().unwrap()
-    }
-}
-
 impl ConfigInner {
-    fn from_file(path: impl AsRef<Path>) -> Result<Self, Error> {
+    pub(super) fn from_file(path: impl AsRef<Path>) -> Result<Self, Error> {
         Self::_from_file(&path).map_err(|e| Error::config(path, e))
     }
 
@@ -243,56 +208,5 @@ impl TailwindConfig {
 
     fn default_check_rendered() -> bool {
         true
-    }
-}
-
-#[derive(Debug)]
-pub struct ConfigWatcher {
-    _watcher: RecommendedWatcher,
-    path: PathBuf,
-    watcher_rx: Mutex<Receiver<Result<notify::Event, notify::Error>>>,
-    pub config: Config,
-}
-
-impl ConfigWatcher {
-    pub async fn from_file(path: impl AsRef<Path>) -> Result<Self, Error> {
-        let config = Config::from_file(&path)
-            .inspect_err(|err| tracing::error!("{}", err))
-            .unwrap_or_default();
-
-        let (tx, watcher_rx) = mpsc::channel::<Result<notify::Event, notify::Error>>();
-
-        let mut watcher = notify::recommended_watcher(tx).unwrap();
-
-        watcher
-            .watch(path.as_ref(), notify::RecursiveMode::NonRecursive)
-            .unwrap();
-        Ok(ConfigWatcher {
-            path: PathBuf::from(path.as_ref()),
-            _watcher: watcher,
-            watcher_rx: Mutex::new(watcher_rx),
-            config,
-        })
-    }
-
-    pub async fn await_new(self: Arc<Self>) {
-        let watcher_rx = self.watcher_rx.lock().unwrap();
-        while let Ok(res) = watcher_rx.recv().inspect_err(|e| tracing::error!("{}", e)) {
-            match res {
-                Ok(event) if matches!(event.kind, EventKind::Create(_) | EventKind::Modify(_)) => {
-                    tracing::debug!("Received event: {:?}", event);
-                    // Ignore new events for a bit
-                    sleep(Duration::from_millis(5));
-                    while watcher_rx.try_recv().is_ok() {}
-                    match Config::update_config(&self.config, &self.path) {
-                        Ok(true) => break,
-                        Ok(false) => tracing::warn!("Will NOT update config: Config unchanged."),
-                        Err(err) => tracing::error!("Will NOT update config: {}", err),
-                    }
-                }
-                Err(e) => tracing::error!("Watcher error: {}", e),
-                _ => (),
-            }
-        }
     }
 }
