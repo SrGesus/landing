@@ -5,6 +5,7 @@ use crate::app::App;
 pub mod app;
 pub mod config;
 pub mod error;
+pub mod tailwind;
 
 #[tokio::main]
 async fn main() {

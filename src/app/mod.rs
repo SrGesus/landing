@@ -1,13 +1,13 @@
 use std::{path::Path, sync::Arc};
 
-use axum::Router;
+use axum::{Router, routing::get};
 use tower_http::services::ServeDir;
 
 mod state;
 
 pub use state::AppState;
 
-use crate::config::ConfigWatcher;
+use crate::{config::ConfigWatcher, tailwind::Tailwind};
 
 pub struct App;
 impl App {
@@ -37,14 +37,23 @@ impl App {
     fn router(state: AppState) -> Router {
         let config = state.config.read().unwrap();
         let mut router = Router::new();
-        tracing::info!("Assets endpoint: {}", config.get_files_endpoint());
+        tracing::info!(
+            "Assets endpoint {} serving {}",
+            config.get_files_endpoint(),
+            config.get_files_path().to_string_lossy()
+        );
+
+        // TODO: 404, etc, fallback
+        let files_service = ServeDir::new(config.get_files_path());
+        router = router.route(
+            &format!("{}tailwind.css", config.get_files_endpoint()),
+            get(Tailwind::call),
+        );
+
         if config.get_files_endpoint() == "/" {
-            router = router.fallback_service(ServeDir::new(config.get_files_path()));
+            router = router.fallback_service(files_service);
         } else {
-            router = router.nest_service(
-                config.get_files_endpoint(),
-                ServeDir::new(config.get_files_path()),
-            );
+            router = router.nest_service(config.get_files_endpoint(), files_service);
         }
         drop(config);
 

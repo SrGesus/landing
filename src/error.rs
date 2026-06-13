@@ -4,7 +4,7 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("Could not parse config: {0}: {1}")]
+    #[error("Invalid Config: {0}: {1}")]
     Config(String, anyhow::Error),
 }
 
