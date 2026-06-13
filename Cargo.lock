@@ -436,6 +436,7 @@ dependencies = [
  "minijinja",
  "notify",
  "once_cell",
+ "pin-project-lite",
  "regex",
  "serde",
  "tailwind-css",

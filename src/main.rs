@@ -6,6 +6,7 @@ pub mod app;
 pub mod config;
 pub mod error;
 pub mod tailwind;
+pub mod utils;
 
 #[tokio::main]
 async fn main() {

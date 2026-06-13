@@ -32,6 +32,8 @@ pub struct Config {
     files: FileConfig,
     #[serde(default)]
     tailwind: TailwindConfig,
+    #[serde(skip)]
+    tailwind_endpoint: String,
 }
 
 impl Config {
@@ -50,6 +52,7 @@ impl Config {
         Self::validate_path_o(&mut config.templates.path)?;
         Self::validate_path_o(&mut config.scripts.path)?;
         Self::validate_path_o(&mut config.files.path)?;
+        config.tailwind_endpoint = format!("{}tailwind.css", config.get_files_endpoint());
         Ok(config)
     }
 
@@ -143,6 +146,14 @@ impl Config {
         self.files.endpoint.as_ref().unwrap_or(&self.endpoint)
     }
 
+    pub fn get_tailwind_enable(&self) -> bool {
+        self.tailwind.enable
+    }
+
+    pub fn get_tailwind_endpoint(&self) -> &str {
+        &self.tailwind_endpoint
+    }
+
     fn default_index_word() -> String {
         "index".to_string()
     }
@@ -167,6 +178,7 @@ impl Default for Config {
             scripts: Default::default(),
             files: Default::default(),
             tailwind: Default::default(),
+            tailwind_endpoint: format!("{}tailwind.css", Config::default_path().to_string_lossy()),
         }
     }
 }

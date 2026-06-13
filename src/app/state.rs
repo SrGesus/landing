@@ -1,18 +1,20 @@
-use std::sync::{Arc, RwLock};
+use std::{convert::Infallible, sync::{Arc, RwLock}};
+
+use axum::{extract::Request, response::Response};
 
 use crate::{config::Config, tailwind::Tailwind};
 
 #[derive(Clone, Debug)]
 pub struct AppState {
     pub(super) config: Arc<RwLock<Config>>,
-    pub tailwind: Arc<RwLock<Tailwind>>,
+    pub(super) tailwind: Tailwind,
 }
 
 impl AppState {
     pub(super) async fn build(config: Arc<RwLock<Config>>) -> Self {
         AppState {
             config,
-            tailwind: Arc::new(RwLock::new(Tailwind::new())),
+            tailwind: Tailwind::new(),
         }
     }
 
@@ -21,3 +23,5 @@ impl AppState {
         self.config.read().unwrap()
     }
 }
+
+

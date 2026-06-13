@@ -1,41 +1,33 @@
 use std::{
     collections::HashSet,
+    convert::Infallible,
     hash::{DefaultHasher, Hasher as _},
     sync::{Arc, RwLock},
 };
 
-use axum::extract::State;
-use http::{HeaderMap, Response, StatusCode};
+use axum::{body::Body, extract::Request, response::Response};
+use futures::{FutureExt, future::BoxFuture};
+use http::{StatusCode, header};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use tailwind_css::TailwindBuilder;
-
-use crate::app::AppState;
+use tower::Service;
 
 static TAILWIND_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r#"class="([\w\/:\-\s]+)""#).unwrap());
 
 #[derive(Debug)]
-pub(super) struct Tailwind {
+pub(super) struct TailwindInner {
     builder: TailwindBuilder,
     classes: HashSet<String>,
     bundle: String,
     pub etag: String,
     changed: bool, // if true then bundle is out of date
 }
+#[derive(Debug, Clone)]
+pub(super) struct Tailwind(Arc<RwLock<TailwindInner>>);
 
-impl Tailwind {
-    pub fn new() -> Self {
-        Tailwind {
-            builder: TailwindBuilder::default(),
-            bundle: String::new(),
-            classes: HashSet::new(),
-            etag: String::new(),
-            changed: true,
-        }
-    }
-
-    pub fn finish(&mut self) -> (String, String) {
-        tracing::info!("FInish him");
+impl TailwindInner {
+    fn finish(&mut self) -> (String, String) {
         let bundle = self.builder.bundle().unwrap();
         let mut hasher = DefaultHasher::default();
         hasher.write(bundle.as_bytes());
@@ -44,8 +36,20 @@ impl Tailwind {
         self.changed = false;
         (self.bundle.clone(), self.etag.clone())
     }
+}
 
-    pub fn add_content(tailwind: Arc<RwLock<Tailwind>>, content: &str) {
+impl Tailwind {
+    pub fn new() -> Self {
+        Tailwind(Arc::new(RwLock::new(TailwindInner {
+            builder: TailwindBuilder::default(),
+            bundle: String::new(),
+            classes: HashSet::new(),
+            etag: String::new(),
+            changed: true,
+        })))
+    }
+
+    pub fn add_content(Tailwind(tailwind): Tailwind, content: &str) {
         let classes = TAILWIND_REGEX
             .captures_iter(content)
             .map(|c| {
@@ -66,7 +70,8 @@ impl Tailwind {
         }
     }
 
-    pub fn get_bundle(tailwind: Arc<RwLock<Tailwind>>) -> (String, String) {
+    pub fn get_bundle(&self) -> (String, String) {
+        let Tailwind(tailwind) = self;
         if tailwind.read().unwrap().changed {
             tailwind.write().unwrap().finish()
         } else {
@@ -75,33 +80,52 @@ impl Tailwind {
         }
     }
 
-    pub async fn call(state: State<AppState>, headers: HeaderMap) -> Response<String> {
-        let (bundle, etag) = Tailwind::get_bundle(state.0.tailwind);
+    pub async fn try_call(self, req: Request) -> Result<Response, Infallible> {
+        let (bundle, etag) = self.get_bundle();
+        let headers = req.headers();
 
         // If none match
         if let Some(client_etag) = headers.get(axum::http::header::IF_NONE_MATCH)
             && *client_etag == *etag
         {
-            return Response::builder()
+            return Ok(Response::builder()
                 .status(StatusCode::NOT_MODIFIED)
-                .body("".to_owned())
-                .unwrap();
+                .body(Body::empty())
+                .unwrap());
         }
 
         // If match
         if let Some(client_etag) = headers.get(axum::http::header::IF_MATCH)
             && *client_etag != *etag
         {
-            return Response::builder()
+            return Ok(Response::builder()
                 .status(StatusCode::PRECONDITION_FAILED)
-                .body("".to_owned())
-                .unwrap();
+                .body(Body::empty())
+                .unwrap());
         }
 
-        Response::builder()
+        Ok(Response::builder()
             .status(StatusCode::OK)
-            .header("ETag", etag)
-            .body(bundle)
-            .unwrap()
+            .header(header::ETAG, etag)
+            .header(header::CONTENT_TYPE, "text/css")
+            .body(Body::from(bundle))
+            .unwrap())
+    }
+}
+
+impl Service<Request> for Tailwind {
+    type Response = Response;
+    type Error = Infallible;
+    type Future = BoxFuture<'static, Result<Self::Response, Self::Error>>;
+
+    fn poll_ready(
+        &mut self,
+        _cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
+        std::task::Poll::Ready(Ok(()))
+    }
+
+    fn call(&mut self, req: Request) -> Self::Future {
+        self.clone().try_call(req).boxed()
     }
 }

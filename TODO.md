@@ -10,8 +10,8 @@
     - [ ] Add cgi-like script execution
     - [ ] Make its output available to templates
 - [ ] Tailwind
-    - [ ] Keep date on structure
-    - [ ] Keep set of tailwind classes that have been read
+    - [x] Keep date on structure
+    - [x] Keep set of tailwind classes that have been read
     - [ ] Optionally read rendered output for tailwind classes
-- [ ] Refactor tidying everything up and implementing everything as a tower service
-- [ ] Use notify to watch for file changes
+- [x] Refactor tidying everything up and implementing everything as a tower service
+- [x] Use notify to watch for file changes
