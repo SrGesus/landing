@@ -12,7 +12,7 @@ include = "./config.d/"
 
 # Jinja templates
 [templates]
-suffixes = [ ".html.j2", ".j2", ".html", ]
+suffixes = [ ".html.j2", ".j2", ".html" ]
 
 # CGI-like Scripts
 [scripts]

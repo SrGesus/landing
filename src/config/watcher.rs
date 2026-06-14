@@ -1,14 +1,14 @@
 use std::{
     path::{Path, PathBuf},
     sync::{
-        Arc, Mutex,
+        Arc,
         mpsc::{self, Receiver},
     },
-    thread::sleep,
     time::Duration,
 };
 
 use notify::{EventKind, RecommendedWatcher, Watcher};
+use tokio::{sync::Mutex, time::sleep};
 
 use super::Config;
 use crate::error::Error;
@@ -43,13 +43,13 @@ impl ConfigWatcher {
     }
 
     pub async fn await_new(self: Arc<Self>) {
-        let watcher_rx = self.watcher_rx.lock().unwrap();
+        let watcher_rx = self.watcher_rx.lock().await;
         while let Ok(res) = watcher_rx.recv().inspect_err(|e| tracing::error!("{}", e)) {
             match res {
                 Ok(event) if matches!(event.kind, EventKind::Create(_) | EventKind::Modify(_)) => {
                     tracing::debug!("Received event: {:?}", event);
                     // Ignore new events for a bit
-                    sleep(Duration::from_millis(5));
+                    sleep(Duration::from_millis(5)).await;
                     while watcher_rx.try_recv().is_ok() {}
                     match Config::update_config(&self.config, &self.path) {
                         Ok(true) => break,

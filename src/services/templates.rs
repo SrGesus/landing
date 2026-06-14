@@ -6,7 +6,6 @@ use std::{
         Arc, RwLock,
         mpsc::{self, Receiver},
     },
-    thread::sleep,
     time::Duration,
 };
 
@@ -18,7 +17,7 @@ use futures::{FutureExt, future::BoxFuture};
 use http::StatusCode;
 use minijinja::{Environment, context};
 use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
-use tokio::fs;
+use tokio::{fs, time::sleep};
 
 use crate::{config::Config, services::Tailwind};
 
@@ -55,7 +54,7 @@ impl TemplatesWatcher {
     ) {
         tokio::spawn(async move {
             // Ignore new events for a bit
-            sleep(Duration::from_millis(5));
+            sleep(Duration::from_millis(5)).await;
             while watcher_rx.try_recv().is_ok() {}
 
             while let Ok(res) = watcher_rx.recv() {
@@ -65,7 +64,7 @@ impl TemplatesWatcher {
                     {
                         tracing::debug!("Received event: {:?}", event);
                         // Ignore new events for a bit
-                        sleep(Duration::from_millis(5));
+                        sleep(Duration::from_millis(5)).await;
                         while watcher_rx.try_recv().is_ok() {}
                         // Add template
                         // TODO
