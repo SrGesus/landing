@@ -101,16 +101,16 @@ impl App {
             return tailwind.call(req);
         }
 
-        tracing::info!(
-            "We got {} {}",
-            req.uri(),
-            self.config.read().get_templates_endpoint()
-        );
+        // tracing::info!(
+        //     "We got {} {}",
+        //     req.uri(),
+        //     self.config.read().get_templates_endpoint()
+        // );
 
         // Templates route
         let template_name = self.config.read().get_template_name(req.uri());
         if let Some(template_name) = template_name {
-            tracing::info!("Looking for template {}", template_name);
+            tracing::debug!("Looking for template \"{}\"", template_name);
             (self, req) = match self.try_call_templates(req, template_name) {
                 Ok(future) => return future,
                 Err((req, state)) => (req, state),

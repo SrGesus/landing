@@ -130,9 +130,7 @@ pub trait TemplatesState: Sized + Clone + Send + 'static {
                 if let Ok(mut dir) = fs::read_dir(dir).await {
                     while let Ok(Some(entry)) = dir.next_entry().await {
                         match entry.metadata().await {
-                            Ok(metadata) if metadata.is_dir() => {
-                                stack.push(entry.path())
-                            }
+                            Ok(metadata) if metadata.is_dir() => stack.push(entry.path()),
                             Ok(metadata) if metadata.is_file() => handles
                                 .push(tokio::spawn(self.clone().handle_file(entry.path(), true))),
                             _ => (),
@@ -159,19 +157,21 @@ pub trait TemplatesState: Sized + Clone + Send + 'static {
                 return;
             }
 
-            let file_name = path
-                .strip_prefix(self.config().read().get_templates_path())
-                .unwrap()
-                .to_string_lossy();
+            let file_name = format!(
+                "/{}",
+                path.strip_prefix(self.config().read().get_templates_path())
+                    .unwrap()
+                    .to_string_lossy()
+            );
 
-            let mut template_names = vec![];
+            let mut template_names = vec![file_name.to_string()];
             for suffix in self.config().read().get_templates_suffixes() {
                 if let Some(name) = &file_name.strip_suffix(suffix) {
                     template_names.push(name.to_string());
                 }
             }
 
-            if template_names.is_empty() {
+            if template_names.len() <= 1 {
                 return;
             }
 
@@ -187,16 +187,17 @@ pub trait TemplatesState: Sized + Clone + Send + 'static {
                 let templates = self.templates();
                 let mut guard = templates.environment.write().unwrap();
                 for name in template_names {
-                    tracing::debug!("Adding template: {}", name);
+                    tracing::debug!("Adding template: \"{}\"", name);
                     if guard.get_template(&name).is_ok() && build {
-                        tracing::warn!("Loaded template \"{}\" more than once.", name);
+                        tracing::warn!("Template \"{}\" loaded more than once.", name);
                     }
                     if let Err(err) = guard.add_template_owned(name, template_contents.clone()) {
                         tracing::error!(
-                            "Could not parse template {}: {}",
+                            "Could not parse template \"{}\": {}",
                             path.to_string_lossy(),
                             err
                         );
+                        return;
                     }
                 }
             }

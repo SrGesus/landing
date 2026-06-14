@@ -46,13 +46,11 @@ impl ConfigInner {
         config.tailwind_endpoint = format!("{}tailwind.css", config.get_files_endpoint());
         let mut templates_index_suffixes = vec![];
         for suffix in config.get_templates_suffixes() {
-            templates_index_suffixes.push(format!("{}{}", config.get_index_word(), suffix));
             templates_index_suffixes.push(format!("/{}{}", config.get_index_word(), suffix));
         }
         config.templates.suffixes.extend(templates_index_suffixes);
         let mut scripts_index_suffixes = vec![];
         for suffix in config.get_scripts_suffixes() {
-            scripts_index_suffixes.push(format!("{}{}", config.get_index_word(), suffix));
             scripts_index_suffixes.push(format!("/{}{}", config.get_index_word(), suffix));
         }
         config.scripts.suffixes.extend(scripts_index_suffixes);
@@ -63,7 +61,6 @@ impl ConfigInner {
         let uri_string = uri.to_string();
         let mut files_endpoint = self.get_files_endpoint().chars();
         files_endpoint.next_back();
-        tracing::error!("{}", files_endpoint.as_str());
         uri_string
             .strip_prefix(files_endpoint.as_str())?
             .parse()
@@ -71,9 +68,16 @@ impl ConfigInner {
     }
 
     pub fn get_template_name(&self, uri: &http::Uri) -> Option<String> {
-        uri.path()
-            .strip_prefix(self.get_templates_endpoint())
-            .map(str::to_string)
+        // TODO: fix this mess, cloning too many strings
+        let mut template_name = uri.path().to_string();
+        Self::validate_endpoint(&mut template_name);
+        let mut path = template_name
+            .strip_prefix(self.get_templates_endpoint())?
+            .to_string();
+        if path.pop().is_some() {
+            path.insert(0, '/');
+        }
+        Some(path)
     }
 
     fn validate_path(path: &mut PathBuf) -> Result<(), anyhow::Error> {
