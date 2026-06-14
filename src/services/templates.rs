@@ -2,7 +2,12 @@ use std::{
     borrow::Cow,
     convert::Infallible,
     path::PathBuf,
-    sync::{Arc, RwLock},
+    sync::{
+        Arc, RwLock,
+        mpsc::{self, Receiver},
+    },
+    thread::sleep,
+    time::Duration,
 };
 
 use axum::{
@@ -12,9 +17,70 @@ use axum::{
 use futures::{FutureExt, future::BoxFuture};
 use http::StatusCode;
 use minijinja::{Environment, context};
+use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use tokio::fs;
 
 use crate::{config::Config, services::Tailwind};
+
+pub struct TemplatesWatcher {
+    _watcher: RecommendedWatcher,
+    pub templates: Templates,
+}
+
+impl TemplatesWatcher {
+    pub fn new<S: TemplatesState>(state: S) -> Self {
+        let (tx, watcher_rx) = mpsc::channel::<Result<notify::Event, notify::Error>>();
+
+        let mut watcher = notify::recommended_watcher(tx).unwrap();
+        watcher
+            .watch(
+                state.config().read().get_templates_path(),
+                RecursiveMode::Recursive,
+            )
+            .unwrap();
+
+        let templates = Templates::new();
+
+        Self::watcher_task(state, watcher_rx);
+
+        Self {
+            _watcher: watcher,
+            templates,
+        }
+    }
+
+    fn watcher_task<S: TemplatesState>(
+        state: S,
+        watcher_rx: Receiver<Result<notify::Event, notify::Error>>,
+    ) {
+        tokio::spawn(async move {
+            // Ignore new events for a bit
+            sleep(Duration::from_millis(5));
+            while watcher_rx.try_recv().is_ok() {}
+
+            while let Ok(res) = watcher_rx.recv() {
+                match res {
+                    Ok(event)
+                        if matches!(event.kind, EventKind::Create(_) | EventKind::Modify(_)) =>
+                    {
+                        tracing::debug!("Received event: {:?}", event);
+                        // Ignore new events for a bit
+                        sleep(Duration::from_millis(5));
+                        while watcher_rx.try_recv().is_ok() {}
+                        // Add template
+                        // TODO
+                        tracing::info!("Templates {:?} modified", event.paths);
+                        for path in event.paths {
+                            state.clone().handle_file(path, false).await;
+                        }
+                    }
+                    Err(e) => tracing::error!("Watcher error: {}", e),
+                    _ => (),
+                }
+            }
+        });
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct Templates {
@@ -61,14 +127,16 @@ pub trait TemplatesState: Sized + Clone + Send + 'static {
             let mut handles = vec![];
 
             while let Some(dir) = stack.pop() {
-                let mut dir = fs::read_dir(dir).await.unwrap();
-
-                while let Some(entry) = dir.next_entry().await.unwrap() {
-                    let metadata = entry.metadata().await.unwrap();
-                    if metadata.is_dir() {
-                        stack.push(entry.path());
-                    } else if metadata.is_file() {
-                        handles.push(tokio::spawn(self.clone().handle_file(entry.path())));
+                if let Ok(mut dir) = fs::read_dir(dir).await {
+                    while let Ok(Some(entry)) = dir.next_entry().await {
+                        match entry.metadata().await {
+                            Ok(metadata) if metadata.is_dir() => {
+                                stack.push(entry.path())
+                            }
+                            Ok(metadata) if metadata.is_file() => handles
+                                .push(tokio::spawn(self.clone().handle_file(entry.path(), true))),
+                            _ => (),
+                        }
                     }
                 }
             }
@@ -84,8 +152,13 @@ pub trait TemplatesState: Sized + Clone + Send + 'static {
     fn handle_file(
         self,
         path: PathBuf,
+        build: bool,
     ) -> impl std::future::Future<Output = ()> + std::marker::Send + 'static {
         async move {
+            if !tokio::fs::metadata(&path).await.is_ok_and(|f| f.is_file()) {
+                return;
+            }
+
             let file_name = path
                 .strip_prefix(self.config().read().get_templates_path())
                 .unwrap()
@@ -102,27 +175,29 @@ pub trait TemplatesState: Sized + Clone + Send + 'static {
                 return;
             }
 
-            let template_contents = Cow::Owned(fs::read_to_string(&path).await.unwrap());
+            if let Ok(template_contents) = fs::read_to_string(&path).await {
+                let template_contents = Cow::Owned(template_contents);
 
-            // Get all css classes for tailwind
-            if let Some(tailwind) = self.tailwind() {
-                tailwind.add_content(&template_contents);
-            }
-
-            // Load templates
-            let templates = self.templates();
-            let mut guard = templates.environment.write().unwrap();
-            for name in template_names {
-                tracing::debug!("Adding template: {}", name);
-                if guard.get_template(&name).is_ok() {
-                    tracing::warn!("Loaded template \"{}\" more than once.", name);
+                // Get all css classes for tailwind
+                if let Some(tailwind) = self.tailwind() {
+                    tailwind.add_content(&template_contents);
                 }
-                if let Err(err) = guard.add_template_owned(name, template_contents.clone()) {
-                    tracing::error!(
-                        "Could not parse template {}: {}",
-                        path.to_string_lossy(),
-                        err
-                    );
+
+                // Load templates
+                let templates = self.templates();
+                let mut guard = templates.environment.write().unwrap();
+                for name in template_names {
+                    tracing::debug!("Adding template: {}", name);
+                    if guard.get_template(&name).is_ok() && build {
+                        tracing::warn!("Loaded template \"{}\" more than once.", name);
+                    }
+                    if let Err(err) = guard.add_template_owned(name, template_contents.clone()) {
+                        tracing::error!(
+                            "Could not parse template {}: {}",
+                            path.to_string_lossy(),
+                            err
+                        );
+                    }
                 }
             }
         }

@@ -7,7 +7,7 @@ use tower_http::services::ServeDir;
 
 use crate::{
     config::{Config, ConfigWatcher},
-    services::{Tailwind, Templates, TemplatesState},
+    services::{Tailwind, Templates, TemplatesState, TemplatesWatcher},
     utils::MapIntoResponse,
 };
 
@@ -21,6 +21,8 @@ pub struct App {
 
 impl App {
     pub(super) async fn build(config: Config) -> Self {
+        // Clippy keeps complaining about the guard even if i drop if before the await
+        // so i had to put it in a block
         let (serve_dir, tailwind, templates) = {
             let guard = config.read();
 
@@ -55,6 +57,12 @@ impl App {
         .await
     }
 
+    pub async fn watch(&self) -> (TemplatesWatcher,) {
+        let templates_watcher = TemplatesWatcher::new(self.clone());
+
+        (templates_watcher,)
+    }
+
     pub async fn serve(path: impl AsRef<Path>) {
         let config_watcher = Arc::new(
             ConfigWatcher::from_file(path)
@@ -64,6 +72,7 @@ impl App {
 
         loop {
             let state = Self::build(config_watcher.config.clone()).await;
+            let watchers = state.watch().await;
 
             let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
             tracing::info!(
@@ -76,6 +85,7 @@ impl App {
                 .with_graceful_shutdown(config_watcher.clone().await_new())
                 .await
                 .unwrap();
+            drop(watchers)
         }
     }
 

@@ -44,6 +44,18 @@ impl ConfigInner {
         Self::validate_path_o(&mut config.scripts.path)?;
         Self::validate_path_o(&mut config.files.path)?;
         config.tailwind_endpoint = format!("{}tailwind.css", config.get_files_endpoint());
+        let mut templates_index_suffixes = vec![];
+        for suffix in config.get_templates_suffixes() {
+            templates_index_suffixes.push(format!("{}{}", config.get_index_word(), suffix));
+            templates_index_suffixes.push(format!("/{}{}", config.get_index_word(), suffix));
+        }
+        config.templates.suffixes.extend(templates_index_suffixes);
+        let mut scripts_index_suffixes = vec![];
+        for suffix in config.get_scripts_suffixes() {
+            scripts_index_suffixes.push(format!("{}{}", config.get_index_word(), suffix));
+            scripts_index_suffixes.push(format!("/{}{}", config.get_index_word(), suffix));
+        }
+        config.scripts.suffixes.extend(scripts_index_suffixes);
         Ok(config)
     }
 
