@@ -47,15 +47,21 @@ impl ConfigInner {
         Ok(config)
     }
 
-    pub fn get_assets_uri(&self, uri: &http::Uri) -> Option<http::Uri> {
+    pub fn get_files_uri(&self, uri: &http::Uri) -> Option<http::Uri> {
         let uri_string = uri.to_string();
-        let mut assets_endpoint = self.get_files_endpoint().chars();
-        assets_endpoint.next_back();
-        tracing::error!("{}", assets_endpoint.as_str());
+        let mut files_endpoint = self.get_files_endpoint().chars();
+        files_endpoint.next_back();
+        tracing::error!("{}", files_endpoint.as_str());
         uri_string
-            .strip_prefix(assets_endpoint.as_str())?
+            .strip_prefix(files_endpoint.as_str())?
             .parse()
             .ok()
+    }
+
+    pub fn get_template_name(&self, uri: &http::Uri) -> Option<String> {
+        uri.path()
+            .strip_prefix(self.get_templates_endpoint())
+            .map(str::to_string)
     }
 
     fn validate_path(path: &mut PathBuf) -> Result<(), anyhow::Error> {
