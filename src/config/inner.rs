@@ -1,6 +1,4 @@
-use std::{
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
@@ -46,18 +44,40 @@ impl ConfigInner {
         Self::validate_path_o(&mut config.scripts.path)?;
         Self::validate_path_o(&mut config.files.path)?;
         config.tailwind_endpoint = format!("{}tailwind.css", config.get_files_endpoint());
+        let mut templates_index_suffixes = vec![];
+        for suffix in config.get_templates_suffixes() {
+            templates_index_suffixes.push(format!("/{}{}", config.get_index_word(), suffix));
+        }
+        config.templates.suffixes.extend(templates_index_suffixes);
+        let mut scripts_index_suffixes = vec![];
+        for suffix in config.get_scripts_suffixes() {
+            scripts_index_suffixes.push(format!("/{}{}", config.get_index_word(), suffix));
+        }
+        config.scripts.suffixes.extend(scripts_index_suffixes);
         Ok(config)
     }
 
-    pub fn get_assets_uri(&self, uri: &http::Uri) -> Option<http::Uri> {
+    pub fn get_files_uri(&self, uri: &http::Uri) -> Option<http::Uri> {
         let uri_string = uri.to_string();
-        let mut assets_endpoint = self.get_files_endpoint().chars();
-        assets_endpoint.next_back();
-        tracing::error!("{}", assets_endpoint.as_str());
+        let mut files_endpoint = self.get_files_endpoint().chars();
+        files_endpoint.next_back();
         uri_string
-            .strip_prefix(assets_endpoint.as_str())?
+            .strip_prefix(files_endpoint.as_str())?
             .parse()
             .ok()
+    }
+
+    pub fn get_template_name(&self, uri: &http::Uri) -> Option<String> {
+        // TODO: fix this mess, cloning too many strings
+        let mut template_name = uri.path().to_string();
+        Self::validate_endpoint(&mut template_name);
+        let mut path = template_name
+            .strip_prefix(self.get_templates_endpoint())?
+            .to_string();
+        if path.pop().is_some() {
+            path.insert(0, '/');
+        }
+        Some(path)
     }
 
     fn validate_path(path: &mut PathBuf) -> Result<(), anyhow::Error> {
@@ -123,12 +143,20 @@ impl ConfigInner {
         self.templates.endpoint.as_ref().unwrap_or(&self.endpoint)
     }
 
+    pub fn get_templates_suffixes(&self) -> &Vec<std::string::String> {
+        &self.templates.suffixes
+    }
+
     pub fn get_scripts_path(&self) -> &PathBuf {
         self.scripts.path.as_ref().unwrap_or(&self.path)
     }
 
     pub fn get_scripts_endpoint(&self) -> &str {
         self.scripts.endpoint.as_ref().unwrap_or(&self.endpoint)
+    }
+
+    pub fn get_scripts_suffixes(&self) -> &Vec<std::string::String> {
+        &self.scripts.suffixes
     }
 
     pub fn get_files_path(&self) -> &PathBuf {
@@ -141,6 +169,10 @@ impl ConfigInner {
 
     pub fn get_tailwind_enable(&self) -> bool {
         self.tailwind.enable
+    }
+
+    pub fn get_tailwind_check_rendered(&self) -> bool {
+        self.tailwind.check_rendered
     }
 
     pub fn get_tailwind_endpoint(&self) -> &str {

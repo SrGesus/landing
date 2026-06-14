@@ -16,7 +16,7 @@ use tower::Service;
 static TAILWIND_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r#"class="([\w\/:\-\s]+)""#).unwrap());
 
 #[derive(Debug)]
-pub(super) struct TailwindInner {
+struct TailwindInner {
     builder: TailwindBuilder,
     classes: HashSet<String>,
     bundle: String,
@@ -24,7 +24,7 @@ pub(super) struct TailwindInner {
     changed: bool, // if true then bundle is out of date
 }
 #[derive(Debug, Clone)]
-pub(super) struct Tailwind(Arc<RwLock<TailwindInner>>);
+pub struct Tailwind(Arc<RwLock<TailwindInner>>);
 
 impl TailwindInner {
     fn finish(&mut self) -> (String, String) {
@@ -35,6 +35,12 @@ impl TailwindInner {
         self.etag = format!("\"{:x}\"", hasher.finish());
         self.changed = false;
         (self.bundle.clone(), self.etag.clone())
+    }
+}
+
+impl Default for Tailwind {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -49,7 +55,8 @@ impl Tailwind {
         })))
     }
 
-    pub fn add_content(Tailwind(tailwind): Tailwind, content: &str) {
+    pub fn add_content(self, content: &str) {
+        let Tailwind(tailwind) = self;
         let classes = TAILWIND_REGEX
             .captures_iter(content)
             .map(|c| {

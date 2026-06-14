@@ -10,8 +10,8 @@ use std::{
 
 use notify::{EventKind, RecommendedWatcher, Watcher};
 
-use crate::error::Error;
 use super::Config;
+use crate::error::Error;
 
 #[derive(Debug)]
 pub struct ConfigWatcher {

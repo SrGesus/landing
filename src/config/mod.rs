@@ -1,18 +1,19 @@
 use std::{
-    path::{Path},
-    sync::{
-        Arc, RwLock,
-    },
+    path::Path,
+    sync::{Arc, RwLock},
 };
-
 
 use crate::error::Error;
 
-mod watcher;
 mod inner;
+mod watcher;
 
-pub use watcher::ConfigWatcher;
 pub use inner::ConfigInner;
+use minijinja::{
+    Value,
+    value::{Enumerator, Object},
+};
+pub use watcher::ConfigWatcher;
 
 #[derive(Clone, Debug, Default)]
 pub struct Config(Arc<RwLock<ConfigInner>>);
@@ -39,5 +40,18 @@ impl Config {
 
     pub fn write(&self) -> std::sync::RwLockWriteGuard<'_, ConfigInner> {
         self.0.write().unwrap()
+    }
+}
+
+impl Object for Config {
+    fn get_value(self: &Arc<Self>, key: &Value) -> Option<Value> {
+        match key.as_str()? {
+            "tailwind_href" => Some(Value::from(self.read().get_tailwind_endpoint())),
+            _ => None,
+        }
+    }
+
+    fn enumerate(self: &Arc<Self>) -> Enumerator {
+        Enumerator::Str(&["tailwind_href"])
     }
 }
