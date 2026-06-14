@@ -1,18 +1,15 @@
 use std::{
-    path::{Path},
-    sync::{
-        Arc, RwLock,
-    },
+    path::Path,
+    sync::{Arc, RwLock},
 };
-
 
 use crate::error::Error;
 
-mod watcher;
 mod inner;
+mod watcher;
 
-pub use watcher::ConfigWatcher;
 pub use inner::ConfigInner;
+pub use watcher::ConfigWatcher;
 
 #[derive(Clone, Debug, Default)]
 pub struct Config(Arc<RwLock<ConfigInner>>);

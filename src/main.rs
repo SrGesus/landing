@@ -5,7 +5,7 @@ use crate::app::App;
 pub mod app;
 pub mod config;
 pub mod error;
-pub mod tailwind;
+pub mod services;
 pub mod utils;
 
 #[tokio::main]

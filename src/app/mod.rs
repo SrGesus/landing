@@ -7,7 +7,7 @@ use tower_http::services::ServeDir;
 
 use crate::{
     config::{Config, ConfigWatcher},
-    tailwind::Tailwind,
+    services::Tailwind,
     utils::MapIntoResponse,
 };
 

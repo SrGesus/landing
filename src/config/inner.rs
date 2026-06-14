@@ -1,6 +1,4 @@
-use std::{
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
@@ -123,12 +121,20 @@ impl ConfigInner {
         self.templates.endpoint.as_ref().unwrap_or(&self.endpoint)
     }
 
+    pub fn get_templates_suffixes(&self) -> &Vec<std::string::String> {
+        &self.templates.suffixes
+    }
+
     pub fn get_scripts_path(&self) -> &PathBuf {
         self.scripts.path.as_ref().unwrap_or(&self.path)
     }
 
     pub fn get_scripts_endpoint(&self) -> &str {
         self.scripts.endpoint.as_ref().unwrap_or(&self.endpoint)
+    }
+
+    pub fn get_scripts_suffixes(&self) -> &Vec<std::string::String> {
+        &self.scripts.suffixes
     }
 
     pub fn get_files_path(&self) -> &PathBuf {
@@ -141,6 +147,10 @@ impl ConfigInner {
 
     pub fn get_tailwind_enable(&self) -> bool {
         self.tailwind.enable
+    }
+
+    pub fn get_tailwind_check_rendered(&self) -> bool {
+        self.tailwind.check_rendered
     }
 
     pub fn get_tailwind_endpoint(&self) -> &str {
