@@ -27,14 +27,16 @@ struct TailwindInner {
 pub struct Tailwind(Arc<RwLock<TailwindInner>>);
 
 impl TailwindInner {
-    fn finish(&mut self) -> (String, String) {
-        let bundle = self.builder.bundle().unwrap();
-        let mut hasher = DefaultHasher::default();
-        hasher.write(bundle.as_bytes());
-        self.bundle = bundle;
-        self.etag = format!("\"{:x}\"", hasher.finish());
-        self.changed = false;
-        (self.bundle.clone(), self.etag.clone())
+    fn finish(&mut self) -> String {
+        if self.changed {
+            let bundle = self.builder.bundle().unwrap();
+            let mut hasher = DefaultHasher::default();
+            hasher.write(bundle.as_bytes());
+            self.bundle = bundle;
+            self.etag = format!("\"{:x}\"", hasher.finish());
+            self.changed = false;
+        }
+        self.etag.clone()
     }
 }
 
@@ -77,18 +79,29 @@ impl Tailwind {
         }
     }
 
-    pub fn get_bundle(&self) -> (String, String) {
+    pub fn get_etag(&self) -> String {
         let Tailwind(tailwind) = self;
         if tailwind.read().unwrap().changed {
             tailwind.write().unwrap().finish()
         } else {
-            let tailwind = tailwind.read().unwrap();
-            (tailwind.bundle.clone(), tailwind.etag.clone())
+            tailwind.read().unwrap().etag.clone()
+        }
+    }
+
+    pub fn get_bundle(&self) -> (String, String) {
+        let Tailwind(tailwind) = self;
+        // Important to guarantee the etag corresponds to the bundle
+        if tailwind.read().unwrap().changed {
+            let mut tailwind_write = tailwind.write().unwrap();
+            (tailwind_write.finish(), tailwind_write.bundle.clone())
+        } else {
+            let tailwind_read = tailwind.read().unwrap();
+            (tailwind_read.etag.clone(), tailwind_read.bundle.clone())
         }
     }
 
     pub async fn try_call(self, req: Request) -> Result<Response, Infallible> {
-        let (bundle, etag) = self.get_bundle();
+        let etag = self.get_etag();
         let headers = req.headers();
 
         // If none match
@@ -111,6 +124,7 @@ impl Tailwind {
                 .unwrap());
         }
 
+        let (etag, bundle) = self.get_bundle();
         Ok(Response::builder()
             .status(StatusCode::OK)
             .header(header::ETAG, etag)
